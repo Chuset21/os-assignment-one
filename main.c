@@ -133,8 +133,8 @@ int main(void) {
         char *const buffer = getLine(&bufLen);
         if (buffer != NULL) {
             const int commandLength = getcmd(buffer, bufLen - 1, args, &background);
-            free(buffer);
             useCommand(args, commandLength, background);
+            free(buffer);
         }
     }
 #pragma clang diagnostic pop
