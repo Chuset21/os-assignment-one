@@ -102,6 +102,10 @@ void useCommand(char *args[], int commandLength, bool background) {
 
 pid_t parent;
 
+/**
+ * Handler for SIGINT signal
+ * @param sig Signal code
+ */
 static void signalHandler(int sig) {
     if (sig == SIGINT) {
         pid_t self = getpid();
