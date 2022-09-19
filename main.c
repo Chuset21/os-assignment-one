@@ -5,6 +5,8 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/wait.h>
+#include <stdint.h>
 
 #define ARGS_SIZE 30
 
