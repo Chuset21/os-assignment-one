@@ -59,6 +59,10 @@ static char *getLine(ssize_t *bufferLength) {
     *bufferLength = getline(&buffer, &size, stdin);
     if (*bufferLength < 2) {
         free(buffer);
+        // Exit if CTRL+D was pressed
+        if (*bufferLength < 1) {
+            exit(0);
+        }
         return NULL;
     }
 
@@ -84,9 +88,10 @@ void useCommand(char *args[], int commandLength, bool background) {
                     waitpid(childPID, &status, WUNTRACED);
                 }
             } else {
-                // In case it fails
-                while (execvp(*args, args) < 0) {
-                }
+                // Often fails with ENOENT???
+                execvp(*args, args);
+                printf("Failed to execute command\n");
+                exit(127);
             }
         }
     } else if (background) {
