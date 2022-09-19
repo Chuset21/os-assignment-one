@@ -90,7 +90,6 @@ void useCommand(char *args[], int commandLength, bool background) {
                     waitpid(childPID, &status, WUNTRACED);
                 }
             } else {
-                // Often fails with ENOENT???
                 execvp(*args, args);
                 printf("Failed to execute command\n");
                 exit(127);
@@ -101,12 +100,9 @@ void useCommand(char *args[], int commandLength, bool background) {
     }
 }
 
-static void signalIgnoreHandler(__attribute__((unused)) int sig) {
-}
-
 pid_t parent;
 
-static void signalQuitHandler(int sig) {
+static void signalHandler(int sig) {
     if (sig == SIGINT) {
         pid_t self = getpid();
         if (parent != self) {
@@ -116,8 +112,9 @@ static void signalQuitHandler(int sig) {
 }
 
 int main(void) {
-    signal(SIGINT, signalQuitHandler);
-    signal(SIGTSTP, signalIgnoreHandler);
+    signal(SIGINT, signalHandler);
+    // This will ignore the CTRL+Z signal
+    signal(SIGTSTP, SIG_IGN);
     parent = getpid();
 
     char *args[ARGS_SIZE + 1];
