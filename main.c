@@ -111,7 +111,7 @@ static void signalHandler(int sig) {
     if (sig == SIGINT) {
         pid_t self = getpid();
         if (parent != self) {
-            kill(self, SIGKILL);
+            exit(0);
         }
     }
 }
