@@ -156,7 +156,8 @@ void useCommand(char *args[], int commandLength, bool background, char *outputRe
                 int output = -1;
                 int prevOut;
                 if (outputRedirection != NULL) {
-                    output = open(outputRedirection, O_TRUNC | O_CREAT | O_APPEND, 0600);
+                    fflush(stdout);
+                    output = open(outputRedirection, O_WRONLY | O_CREAT | O_TRUNC, 0600);
                     if (output < 0) {
                         perror("error opening file");
                         exit(127);
