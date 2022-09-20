@@ -89,8 +89,6 @@ void useCommand(char *args[], int commandLength, bool background) {
                 if (!background) {
                     int status = 0;
                     waitpid(childPID, &status, WUNTRACED);
-                } else {
-
                 }
             } else {
                 execvp(*args, args);
