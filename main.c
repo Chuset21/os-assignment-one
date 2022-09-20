@@ -119,7 +119,6 @@ static void signalHandler(int sig) {
 }
 
 int main(void) {
-    // Doesn't work
     signal(SIGINT, signalHandler);
     // This will ignore the CTRL+Z signal
     signal(SIGTSTP, SIG_IGN);
