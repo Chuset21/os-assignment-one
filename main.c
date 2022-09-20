@@ -101,6 +101,7 @@ void useCommand(char *args[], int commandLength, bool background) {
     }
 }
 
+// This will be the parent pid, it'll never change or be mutated
 pid_t parent;
 
 /**
@@ -109,8 +110,9 @@ pid_t parent;
  */
 static void signalHandler(int sig) {
     if (sig == SIGINT) {
-        pid_t self = getpid();
-        if (parent != self) {
+        // If the process isn't the parent, call exit
+        pid_t cur = getpid();
+        if (parent != cur) {
             exit(0);
         }
     }
