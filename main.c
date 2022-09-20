@@ -11,15 +11,23 @@
 
 #define ARGS_SIZE 30
 
-void echo(char *args[]) {
-    while (args[1] != NULL) {
-        printf("%s ", *args++);
+/**
+ * Executes the echo command
+ * @param params parameters for command
+ */
+void echo(char *params[]) {
+    while (params[1] != NULL) {
+        printf("%s ", *params++);
     }
-    puts(*args);
+    puts(*params);
 }
 
-void pwd(char *args[]) {
-    if (*args == NULL) {
+/**
+ * Executes the print working directory command
+ * @param params parameters for command (should be empty)
+ */
+void pwd(char *params[]) {
+    if (*params == NULL) {
         const char *const cwd = getcwd(NULL, 0);
         puts(cwd);
     } else {
@@ -27,32 +35,45 @@ void pwd(char *args[]) {
     }
 }
 
-void cd(char *args[]) {
-    if (*args != NULL) {
-        if (args[1] != NULL) {
+/**
+ * Executes the change directory command
+ * @param params parameters for command
+ */
+void cd(char *params[]) {
+    if (*params != NULL) {
+        if (params[1] != NULL) {
             fprintf(stderr, "cd only accepts 1 argument\n");
         } else {
-            if (chdir(*args)) {
+            if (chdir(*params)) {
                 perror(NULL);
             }
         }
     } else {
-        pwd(args);
+        pwd(params);
     }
 }
 
+/**
+ * Kill all processes
+ */
 void exitShell() {
     kill(0, SIGTERM);
 }
 
-bool isBuiltIn(char *cmd, char *args[]) {
+/**
+ * Executes a cmd if it matches the description of a built in cmd
+ * @param cmd command to match against and execute
+ * @param params parameters for given command
+ * @return true if the command was matched and run, false otherwise
+ */
+bool isBuiltIn(char *cmd, char *params[]) {
     if (strcmp(cmd, "cd") == 0) {
     } else if (strcmp(cmd, "pwd") == 0) {
-        pwd(args);
+        pwd(params);
     } else if (strcmp(cmd, "exit") == 0) {
         exitShell();
     } else if (strcmp(cmd, "echo") == 0) {
-        echo(args);
+        echo(params);
     } else {
         return false;
     }
@@ -65,9 +86,13 @@ bool isBuiltIn(char *cmd, char *args[]) {
  * @param bufferEnd last index of the buffer string
  * @param args array of string tokens to be populated
  * @param background pointer to bool to be populated, true if the command should be run in the background
+ * @param outputRedirection pointer to string to be populated, NULL if no output redirection will take place
+ * @param cmdPipeIndex pointer to int to be populated, will equal -1 if no command piping is to take place
  * @return the amount of tokens populated into args
  */
-int getcmd(char *buffer, ssize_t bufferEnd, char *args[], bool *background, char **outputRedirection) {
+int
+getcmd(char *buffer, ssize_t bufferEnd, char *args[], bool *background, char **outputRedirection, int *cmdPipeIndex) {
+    *cmdPipeIndex = -1;
     *outputRedirection = NULL;
     *background = false;
     int i = 0;
@@ -101,6 +126,14 @@ int getcmd(char *buffer, ssize_t bufferEnd, char *args[], bool *background, char
                 } else {
                     fprintf(stderr, "Error parsing '>'");
                 }
+            } else if (strcmp(token, "|") == 0) {
+                if (i == 0 ||
+                    *cmdPipeIndex > 0) { // If it's the first token or there's already been a pipe, then error out
+                    fprintf(stderr, "Error parsing '|'");
+                } else {
+                    args[i++] = NULL;
+                    *cmdPipeIndex = i;
+                }
             } else {
                 args[i++] = token;
             }
@@ -116,7 +149,7 @@ int getcmd(char *buffer, ssize_t bufferEnd, char *args[], bool *background, char
  * @param bufferLength pointer to be updated as the length variable of the read string
  * @return string containing the line fed into stdin
  */
-static char *getLine(ssize_t *bufferLength) {
+static char *getLine(ssize_t *const bufferLength) {
     char *buffer = NULL;
     size_t size = 0;
     *bufferLength = getline(&buffer, &size, stdin);
@@ -134,12 +167,52 @@ static char *getLine(ssize_t *bufferLength) {
 }
 
 /**
- * Use the given command
+ * Run the given command
  * @param args command
+ * @param outputRedirection where the output should be redirected, if NULL no redirection will take place
+ */
+void runCmd(char *args[], const char *const outputRedirection) {
+    int output = -1;
+    int prevOut;
+    if (outputRedirection != NULL) {
+        fflush(stdout);
+        output = open(outputRedirection, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (output < 0) {
+            perror("error opening file");
+            exit(127);
+        }
+        prevOut = dup(fileno(stdout));
+        if (dup2(output, fileno(stdout)) < 0) {
+            perror("error redirecting stdout");
+            exit(127);
+        }
+    }
+
+    if (isBuiltIn(*args, args + 1)) {
+        if (output >= 0) {
+            fflush(stdout);
+            close(output);
+            dup2(prevOut, fileno(stdout));
+            close(prevOut);
+        }
+        exit(0);
+    } else {
+        execvp(*args, args);
+        printf("Failed to execute command\n");
+        exit(127);
+    }
+}
+
+/**
+ * Use the given command/s
+ * @param args command/s
  * @param commandLength the amount of tokens in args
  * @param background whether the command should run in the background
+ * @param outputRedirection where the output should be redirected, if NULL no redirection will take place
+ * @param cmdPipeIndex the next index after where the pipe was found, if -1 then no command piping will take place
  */
-void useCommand(char *args[], int commandLength, bool background, char *outputRedirection) {
+void
+useCommand(char *args[], int commandLength, bool background, const char *const outputRedirection, int cmdPipeIndex) {
     if (commandLength > 0) {
         if (commandLength > ARGS_SIZE) {
             printf("Arguments exceeded max size\n");
@@ -153,34 +226,20 @@ void useCommand(char *args[], int commandLength, bool background, char *outputRe
                     waitpid(childPID, &status, WUNTRACED);
                 }
             } else {
-                int output = -1;
-                int prevOut;
-                if (outputRedirection != NULL) {
-                    fflush(stdout);
-                    output = open(outputRedirection, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-                    if (output < 0) {
-                        perror("error opening file");
-                        exit(127);
+                if (cmdPipeIndex > 0) {
+                    int fileDescriptors[2];
+                    pipe(fileDescriptors);
+                    if (fork() == 0) { // This is the child
+                        dup2(fileDescriptors[1], 1);
+                        runCmd(args, outputRedirection);
                     }
-                    prevOut = dup(fileno(stdout));
-                    if (dup2(output, fileno(stdout)) < 0) {
-                        perror("error redirecting stdout");
-                        exit(127);
-                    }
-                }
 
-                if (isBuiltIn(*args, args + 1)) {
-                    if (output >= 0) {
-                        fflush(stdout);
-                        close(output);
-                        dup2(prevOut, fileno(stdout));
-                        close(prevOut);
-                    }
-                    exit(0);
+                    // This is the parent
+                    dup2(fileDescriptors[0], 0);
+                    close(fileDescriptors[1]); // Close write end of pipe
+                    runCmd(args + cmdPipeIndex, outputRedirection); // Start the commands to the right of the pipe
                 } else {
-                    execvp(*args, args);
-                    printf("Failed to execute command\n");
-                    exit(127);
+                    runCmd(args, outputRedirection);
                 }
             }
         }
@@ -215,6 +274,7 @@ int main(void) {
     char *args[ARGS_SIZE + 1];
     char *outputRedirection = NULL;
     bool background = false;
+    int cmdPipeIdx = -1;
     ssize_t bufLen = 0;
 
 #pragma clang diagnostic push
@@ -226,8 +286,8 @@ int main(void) {
         free(cwd);
         char *const buffer = getLine(&bufLen);
         if (buffer != NULL) {
-            const int commandLength = getcmd(buffer, bufLen - 1, args, &background, &outputRedirection);
-            useCommand(args, commandLength, background, outputRedirection);
+            const int commandLength = getcmd(buffer, bufLen - 1, args, &background, &outputRedirection, &cmdPipeIdx);
+            useCommand(args, commandLength, background, outputRedirection, cmdPipeIdx);
             free(buffer);
         }
     }
