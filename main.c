@@ -19,6 +19,7 @@
  * @return the amount of tokens populated into args
  */
 int getcmd(char *buffer, ssize_t bufferEnd, char *args[], bool *background) {
+    *background = false;
     int i = 0;
     char *token;
 
@@ -88,6 +89,8 @@ void useCommand(char *args[], int commandLength, bool background) {
                 if (!background) {
                     int status = 0;
                     waitpid(childPID, &status, WUNTRACED);
+                } else {
+
                 }
             } else {
                 execvp(*args, args);
@@ -116,6 +119,7 @@ static void signalHandler(int sig) {
 }
 
 int main(void) {
+    // Doesn't work
     signal(SIGINT, signalHandler);
     // This will ignore the CTRL+Z signal
     signal(SIGTSTP, SIG_IGN);
