@@ -230,12 +230,12 @@ useCommand(char *args[], int commandLength, bool background, const char *const o
                     int fileDescriptors[2];
                     pipe(fileDescriptors);
                     if (fork() == 0) { // This is the child
-                        dup2(fileDescriptors[1], 1);
+                        dup2(fileDescriptors[1], fileno(stdout));
                         runCmd(args, outputRedirection);
                     }
 
                     // This is the parent
-                    dup2(fileDescriptors[0], 0);
+                    dup2(fileDescriptors[0], fileno(stdin));
                     close(fileDescriptors[1]); // Close write end of pipe
                     runCmd(args + cmdPipeIndex, outputRedirection); // Start the commands to the right of the pipe
                 } else {
