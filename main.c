@@ -28,8 +28,9 @@ void echo(char *params[]) {
  */
 void pwd(char *params[]) {
     if (*params == NULL) {
-        const char *const cwd = getcwd(NULL, 0);
+        char *const cwd = getcwd(NULL, 0);
         puts(cwd);
+        free(cwd);
     } else {
         fprintf(stderr, "pwd: too many arguments\n");
     }
