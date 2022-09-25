@@ -11,7 +11,6 @@
 
 #define ARGS_SIZE 30
 
-
 typedef struct job {
     char *name;
     pid_t pid;
