@@ -290,7 +290,7 @@ static char *getLine(ssize_t *const bufferLength) {
         free(buffer);
         // Exit if CTRL+D was pressed
         if (*bufferLength < 1) {
-            exit(0);
+            exitShell();
         }
         return NULL;
     }
