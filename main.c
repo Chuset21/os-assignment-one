@@ -192,16 +192,6 @@ void exitShell() {
 }
 
 /**
- * Checks if the cmd is built in
- * @param cmd command to check if is built in
- * @return true if the command is built in
- */
-bool isBuiltIn(char *cmd) {
-    return strcmp(cmd, "cd") == 0 || strcmp(cmd, "fg") == 0 || strcmp(cmd, "pwd") == 0 ||
-           strcmp(cmd, "jobs") == 0 || strcmp(cmd, "exit") == 0 || strcmp(cmd, "echo") == 0;
-}
-
-/**
  * Executes a cmd if it matches the description of a built in cmd
  * @param cmd command to match against and execute
  * @param params parameters for given command
@@ -318,34 +308,23 @@ static char *getLine(ssize_t *const bufferLength) {
  * @param outputRedirection where the output should be redirected, if NULL no redirection will take place
  */
 void runCmd(char *args[], const char *const outputRedirection) {
-    int output = -1;
-    int prevOut;
     if (outputRedirection != NULL) {
         fflush(stdout);
-        output = open(outputRedirection, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        const int output = open(outputRedirection, O_WRONLY | O_CREAT | O_TRUNC, 0600);
         if (output < 0) {
             perror("error opening file");
             exit(127);
         }
-        prevOut = dup(fileno(stdout));
+
         if (dup2(output, fileno(stdout)) < 0) {
             perror("error redirecting stdout");
             exit(127);
         }
     }
 
-    if (runBuiltIn(*args, args + 1)) {
-        if (output >= 0) {
-            fflush(stdout);
-            close(output);
-            dup2(prevOut, fileno(stdout));
-            close(prevOut);
-        }
-    } else {
-        execvp(*args, args);
-        printf("Failed to execute command\n");
-        exit(127);
-    }
+    execvp(*args, args);
+    printf("Failed to execute command\n");
+    exit(127);
 }
 
 /**
@@ -363,23 +342,7 @@ useCommand(char *const command, char *args[], int commandLength, bool background
     if (commandLength > 0) {
         if (commandLength > ARGS_SIZE) {
             printf("Arguments exceeded max size\n");
-        } else if (isBuiltIn(*args)) {
-            if (cmdPipeIndex > 0) {
-                int fileDescriptors[2];
-                pipe(fileDescriptors);
-                if (fork() == 0) { // This is the child
-                    dup2(fileDescriptors[1], fileno(stdout));
-                    runCmd(args, outputRedirection);
-                    exit(0);
-                }
-
-                // This is the parent
-                dup2(fileDescriptors[0], fileno(stdin));
-                close(fileDescriptors[1]); // Close write end of pipe
-                runCmd(args + cmdPipeIndex, outputRedirection); // Start the commands to the right of the pipe
-            } else {
-                runCmd(args, outputRedirection);
-            }
+        } else if (runBuiltIn(*args, args + 1)) {
             free(command);
         } else {
             const pid_t childPID = fork();
