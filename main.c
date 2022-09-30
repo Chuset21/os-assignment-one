@@ -192,13 +192,26 @@ void exitShell() {
 }
 
 /**
+ * Checks if the cmd is built in
+ * @param cmd command to check if is built in
+ * @return true if the command is built in
+ */
+bool isBuiltIn(char *cmd) {
+    return strcmp(cmd, "cd") == 0 || strcmp(cmd, "fg") == 0 || strcmp(cmd, "pwd") == 0 ||
+           strcmp(cmd, "jobs") == 0 || strcmp(cmd, "exit") == 0 || strcmp(cmd, "echo") == 0;
+}
+
+/**
  * Executes a cmd if it matches the description of a built in cmd
  * @param cmd command to match against and execute
  * @param params parameters for given command
  * @return true if the command was matched and run, false otherwise
  */
-bool isBuiltIn(char *cmd, char *params[]) {
-    if (strcmp(cmd, "cd") == 0 || strcmp(cmd, "fg") == 0) {
+bool runBuiltIn(char *cmd, char *params[]) {
+    if (strcmp(cmd, "cd") == 0) {
+        cd(params);
+    } else if (strcmp(cmd, "fg") == 0) {
+        fg(params);
     } else if (strcmp(cmd, "pwd") == 0) {
         pwd(params);
     } else if (strcmp(cmd, "jobs") == 0) {
@@ -321,14 +334,13 @@ void runCmd(char *args[], const char *const outputRedirection) {
         }
     }
 
-    if (isBuiltIn(*args, args + 1)) {
+    if (runBuiltIn(*args, args + 1)) {
         if (output >= 0) {
             fflush(stdout);
             close(output);
             dup2(prevOut, fileno(stdout));
             close(prevOut);
         }
-        exit(0);
     } else {
         execvp(*args, args);
         printf("Failed to execute command\n");
@@ -351,14 +363,28 @@ useCommand(char *const command, char *args[], int commandLength, bool background
     if (commandLength > 0) {
         if (commandLength > ARGS_SIZE) {
             printf("Arguments exceeded max size\n");
+        } else if (isBuiltIn(*args)) {
+            if (cmdPipeIndex > 0) {
+                int fileDescriptors[2];
+                pipe(fileDescriptors);
+                if (fork() == 0) { // This is the child
+                    dup2(fileDescriptors[1], fileno(stdout));
+                    runCmd(args, outputRedirection);
+                    exit(0);
+                }
+
+                // This is the parent
+                dup2(fileDescriptors[0], fileno(stdin));
+                close(fileDescriptors[1]); // Close write end of pipe
+                runCmd(args + cmdPipeIndex, outputRedirection); // Start the commands to the right of the pipe
+            } else {
+                runCmd(args, outputRedirection);
+            }
+            free(command);
         } else {
             const pid_t childPID = fork();
             if (childPID) {
-                if (strcmp(*args, "cd") == 0) {
-                    cd(args + 1);
-                } else if (strcmp(*args, "fg") == 0) {
-                    fg(args + 1);
-                } else if (!background) {
+                if (!background) {
                     int status = 0;
                     waitpid(childPID, &status, WUNTRACED);
                     free(command);
